@@ -111,7 +111,12 @@
       xdg-desktop-portal-gtk
       xdg-desktop-portal-wlr
     ];
+    config = {
+      common = {
+        default = [ "gtk" ];
+    };
   };
+};
 
   security.rtkit.enable = true;
   services.pipewire = {
