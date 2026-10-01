@@ -173,6 +173,86 @@ bar {
 }
 '';
 
+home.file."/home/ravyc/.config/sway/status.sh" = {
+  executable = true;
+  text = ''
+    #!/bin/sh
+
+    interval=1
+
+    cpu_usage() {
+        read cpu user nice system idle iowait irq softirq steal guest guest_nice < /proc/stat
+
+        prev_idle=$((idle + iowait))
+        prev_total=$((user + nice + system + idle + iowait + irq + softirq + steal))
+
+        sleep 0.5
+
+        read cpu user nice system idle iowait irq softirq steal guest guest_nice < /proc/stat
+
+        idle_now=$((idle + iowait))
+        total_now=$((user + nice + system + idle + iowait + irq + softirq + steal))
+
+        idle_delta=$((idle_now - prev_idle))
+        total_delta=$((total_now - prev_total))
+
+        if [ "$total_delta" -eq 0 ]; then
+            echo "0"
+        else
+            awk "BEGIN {printf \"%.0f\", (1 - $idle_delta / $total_delta) * 100}"
+        fi
+    }
+
+    ram_used() {
+        ${pkgs.procps}/bin/free -m | ${pkgs.gawk}/bin/awk '/^Mem:/ {
+            printf "%.1fG", $3 / 1024
+        }'
+    }
+
+    uptime() {
+        ${pkgs.coreutils}/bin/uptime -p |
+          ${pkgs.gawk}/bin/sed 's/^up //; s/ hours\?/h/; s/ minutes\?/m/; s/ days\?/d/'
+    }
+
+    temperature() {
+        if [ -r /sys/class/hwmon/hwmon1/temp1_input ]; then
+            temp=$(${pkgs.coreutils}/bin/cat /sys/class/hwmon/hwmon1/temp1_input)
+            echo "$((temp / 1000))°C"
+        else
+            echo "n/a"
+        fi
+    }
+
+    json_escape() {
+        ${pkgs.gawk}/bin/awk '{
+            gsub(/\\/, "\\\\");
+            gsub(/"/, "\\\"");
+            printf "%s", $0
+        }'
+    }
+
+    printf '{"version":1}\n[\n[]'
+
+    while true; do
+        TIME=$(${pkgs.coreutils}/bin/date '+%H:%M')
+        RAM=$(ram_used)
+        CPU=$(cpu_usage)
+        UPTIME=$(uptime)
+        TEMP=$(temperature)
+
+        printf ',['
+        printf '{"full_text":"[   %s ]","color":"#89b4fa","background":"#1e1e2e"},' "$TIME"
+        printf '{"full_text":"[   %s ]","color":"#89b4fa","background":"#1e1e2e"},' "$RAM"
+        printf '{"full_text":"[   %s%% ]","color":"#89b4fa","background":"#1e1e2e"},' "$CPU"
+        printf '{"full_text":"[   %s ]","color":"#89b4fa","background":"#1e1e2e"},' "$UPTIME"
+        printf '{"full_text":"[   %s ]","color":"#89b4fa","background":"#1e1e2e"}' "$TEMP"
+        printf ']'
+
+        sleep "$interval"
+    done
+  '';
+};
+
 home.file."/home/ravyc/.config/swaylock/config".text = ''
 screenshots
 clock
