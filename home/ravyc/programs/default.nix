@@ -204,15 +204,31 @@ home.file."/home/ravyc/.config/sway/status.sh" = {
     }
 
     ram_used() {
-        ${pkgs.procps}/bin/free -m | ${pkgs.gawk}/bin/awk '/^Mem:/ {
-            printf "%.1fG", $3 / 1024
-        }'
-    }
+    ${pkgs.gawk}/bin/awk '
+        /MemTotal:/ { total = $2 }
+        /MemAvailable:/ { available = $2 }
+        END {
+            printf "%.1fG", (total - available) / 1048576
+        }
+    ' /proc/meminfo
+}
 
-    uptime() {
-        ${pkgs.coreutils}/bin/uptime -p |
-          ${pkgs.gawk}/bin/sed 's/^up //; s/ hours\?/h/; s/ minutes\?/m/; s/ days\?/d/'
-    }
+
+     uptime() {
+    ${pkgs.gawk}/bin/awk '{
+        seconds = int($1)
+        days = int(seconds / 86400)
+        hours = int((seconds % 86400) / 3600)
+        minutes = int((seconds % 3600) / 60)
+
+        if (days > 0)
+            printf "%dd %dh", days, hours
+        else if (hours > 0)
+            printf "%dh %dm", hours, minutes
+        else
+            printf "%dm", minutes
+    }' /proc/uptime
+}
 
     temperature() {
         if [ -r /sys/class/hwmon/hwmon1/temp1_input ]; then
