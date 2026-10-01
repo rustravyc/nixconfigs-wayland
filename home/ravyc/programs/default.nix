@@ -55,6 +55,7 @@ default partial modifier_keys xkb_symbols "map_to_mod3" {
 '';
 
 home.file."/home/ravyc/.config/sway/config".text = ''
+exec dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=sway
 exec mako
 output HDMI-A-2 mode 1600x900@74.997Hz
 font pango:TerminessNerdFontPropo 11
