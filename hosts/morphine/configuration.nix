@@ -157,6 +157,7 @@ programs.sway = {
     foot
     fuzzel
     brightnessctl
+    wl-clipboard
     ];
   };
 
