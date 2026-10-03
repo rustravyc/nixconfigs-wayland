@@ -221,11 +221,6 @@ programs.sway = {
     firefox
     ffmpeg
     appimage-run
-
-# [ here some gaming stuff, you can delete it  ] 
-
-    pcsx2
-
   ];
 
   system.stateVersion = "26.05";
