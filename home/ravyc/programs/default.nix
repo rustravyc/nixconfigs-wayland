@@ -1,12 +1,11 @@
 { pkgs, ... }:
 
-# [here some aliases, you can change it if you dont like it, but everything works]
-
+# [ here some aliases, you can change it if you dont like it, but everything works ]
 {
   programs.bash = {
     enable = true;
     initExtra = ''
-      export PS1="\[\033[1;34m\][\w]\[\033[0m\] "
+      export PS1="\[\033[1;33m\][\w]\[\033[0m\] "
     '';
     shellAliases = {
       rebuild = "doas nixos-rebuild switch --flake /etc/nixos#morphine";
@@ -25,7 +24,7 @@
     };
   };
 
-# [you can change some things here, just if you know what are you doing]
+# [ you can change some things here, just if you know what are you doing ] 
 
 services.mako = {
   enable = true;
@@ -41,12 +40,14 @@ services.mako = {
     default-timeout = 5000;
     ignore-timeout = 0;
     layer = "overlay";
-    background-color = "#1e1e2ee6";
-    progress-color = "#313244";
-    border-color = "#89b4fa";
-    text-color = "#cdd6f4";
+
+    background-color = "#282828e6";
+    progress-color = "#3c3836";
+    border-color = "#d79921";
+    text-color = "#ebdbb2";
   };
 };
+
 
 home.file."/home/ravyc/.config/xkb/symbols/scroll".text = ''
 default partial modifier_keys xkb_symbols "map_to_mod3" {
@@ -54,21 +55,118 @@ default partial modifier_keys xkb_symbols "map_to_mod3" {
 };
 '';
 
+home.file."/home/ravyc/.config/sway/status.sh" = {
+  executable = true;
+  text = ''
+    #!/bin/sh
+
+    interval=1
+
+    cpu_usage() {
+        read cpu user nice system idle iowait irq softirq steal guest guest_nice < /proc/stat
+
+        prev_idle=$((idle + iowait))
+        prev_total=$((user + nice + system + idle + iowait + irq + softirq + steal))
+
+        sleep 0.5
+
+        read cpu user nice system idle iowait irq softirq steal guest guest_nice < /proc/stat
+
+        idle_now=$((idle + iowait))
+        total_now=$((user + nice + system + idle + iowait + irq + softirq + steal))
+
+        idle_delta=$((idle_now - prev_idle))
+        total_delta=$((total_now - prev_total))
+
+        if [ "$total_delta" -eq 0 ]; then
+            echo "0"
+        else
+            awk "BEGIN {printf \"%.0f\", (1 - $idle_delta / $total_delta) * 100}"
+        fi
+    }
+
+    ram_used() {
+    ${pkgs.gawk}/bin/awk '
+        /MemTotal:/ { total = $2 }
+        /MemAvailable:/ { available = $2 }
+        END {
+            printf "%.1fG", (total - available) / 1048576
+        }
+    ' /proc/meminfo
+}
+
+
+     uptime() {
+    ${pkgs.gawk}/bin/awk '{
+        seconds = int($1)
+        days = int(seconds / 86400)
+        hours = int((seconds % 86400) / 3600)
+        minutes = int((seconds % 3600) / 60)
+
+        if (days > 0)
+            printf "%dd %dh", days, hours
+        else if (hours > 0)
+            printf "%dh %dm", hours, minutes
+        else
+            printf "%dm", minutes
+    }' /proc/uptime
+}
+
+    temperature() {
+        if [ -r /sys/class/hwmon/hwmon1/temp1_input ]; then
+            temp=$(${pkgs.coreutils}/bin/cat /sys/class/hwmon/hwmon1/temp1_input)
+            echo "$((temp / 1000))°C"
+        else
+            echo "n/a"
+        fi
+    }
+
+    json_escape() {
+        ${pkgs.gawk}/bin/awk '{
+            gsub(/\\/, "\\\\");
+            gsub(/"/, "\\\"");
+            printf "%s", $0
+        }'
+    }
+
+    printf '{"version":1}\n[\n[]'
+
+    while true; do
+        TIME=$(${pkgs.coreutils}/bin/date '+%H:%M')
+        RAM=$(ram_used)
+        CPU=$(cpu_usage)
+        UPTIME=$(uptime)
+        TEMP=$(temperature)
+
+        printf ',['
+        printf '{"full_text":"[   %s ]","color":"#d79921","background":"#282828"},' "$TIME"
+        printf '{"full_text":"[   %s ]","color":"#d79921","background":"#282828"},' "$RAM"
+        printf '{"full_text":"[   %s%% ]","color":"#d79921","background":"#282828"},' "$CPU"
+        printf '{"full_text":"[   %s ]","color":"#d79921","background":"#282828"},' "$UPTIME"
+        printf '{"full_text":"[   %s ]","color":"#d79921","background":"#282828"}' "$TEMP"
+        printf ']'
+
+        sleep "$interval"
+    done
+  '';
+};
+
 home.file."/home/ravyc/.config/sway/config".text = ''
-exec dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=sway
+exec dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
 exec mako
 output HDMI-A-2 mode 1600x900@74.997Hz
-font pango:TerminessNerdFontPropo 11
+font pango:TerminessNerdFontPropo 12
 for_window [app_id=".*"] floating enable
 for_window [class=".*"] floating enable
 focus_follows_mouse yes
 popup_during_fullscreen smart
 default_floating_border pixel 1
 
-client.focused          #89b4fa #89b4fa #11111b #b4befe #89b4fa
-client.unfocused        #313244 #313244 #cdd6f4 #313244 #313244
-client.focused_inactive #45475a #45475a #cdd6f4 #45475a #45475a
-client.urgent           #f38ba8 #f38ba8 #11111b #f38ba8 #f38ba8
+client.focused          #d79921 #d79921 #282828 #83a598 #d79921
+client.unfocused        #3c3836 #3c3836 #ebdbb2 #3c3836 #3c3836
+client.focused_inactive #504945 #504945 #d5c4a1 #504945 #504945
+client.urgent           #cc241d #cc241d #fbf1c7 #cc241d #cc241d
+
 
 set $mod Mod1
 set $left h
@@ -157,117 +255,18 @@ mode "resize" {
 bar {
     position top
     font pango:TerminessNerdFontPropo 11
+    status_command /home/ravyc/.config/sway/status.sh
+    colors {
+        background #282828
+        statusline #ebdbb2
+        separator  #504945
 
-    # When the status_command prints a new line to stdout, swaybar updates.
-    # The default just shows the current date and time.
-   colors {
-        background #1e1e2e
-        statusline #cdd6f4
-        separator  #585b70
-
-        focused_workspace  #89b4fa #89b4fa #11111b
-        active_workspace   #313244 #313244 #cdd6f4
-        inactive_workspace #1e1e2e #1e1e2e #a6adc8
-        urgent_workspace   #f38ba8 #f38ba8 #11111b
-    }
+        focused_workspace  #d79921 #d79921 #282828
+        active_workspace   #3c3836 #3c3836 #ebdbb2
+        inactive_workspace #282828 #282828 #a89984
+        urgent_workspace   #cc241d #cc241d #fbf1c7
 }
 '';
-
-home.file."/home/ravyc/.config/sway/status.sh" = {
-  executable = true;
-  text = ''
-    #!/bin/sh
-
-    interval=1
-
-    cpu_usage() {
-        read cpu user nice system idle iowait irq softirq steal guest guest_nice < /proc/stat
-
-        prev_idle=$((idle + iowait))
-        prev_total=$((user + nice + system + idle + iowait + irq + softirq + steal))
-
-        sleep 0.5
-
-        read cpu user nice system idle iowait irq softirq steal guest guest_nice < /proc/stat
-
-        idle_now=$((idle + iowait))
-        total_now=$((user + nice + system + idle + iowait + irq + softirq + steal))
-
-        idle_delta=$((idle_now - prev_idle))
-        total_delta=$((total_now - prev_total))
-
-        if [ "$total_delta" -eq 0 ]; then
-            echo "0"
-        else
-            awk "BEGIN {printf \"%.0f\", (1 - $idle_delta / $total_delta) * 100}"
-        fi
-    }
-
-    ram_used() {
-    ${pkgs.gawk}/bin/awk '
-        /MemTotal:/ { total = $2 }
-        /MemAvailable:/ { available = $2 }
-        END {
-            printf "%.1fG", (total - available) / 1048576
-        }
-    ' /proc/meminfo
-}
-
-
-     uptime() {
-    ${pkgs.gawk}/bin/awk '{
-        seconds = int($1)
-        days = int(seconds / 86400)
-        hours = int((seconds % 86400) / 3600)
-        minutes = int((seconds % 3600) / 60)
-
-        if (days > 0)
-            printf "%dd %dh", days, hours
-        else if (hours > 0)
-            printf "%dh %dm", hours, minutes
-        else
-            printf "%dm", minutes
-    }' /proc/uptime
-}
-
-    temperature() {
-        if [ -r /sys/class/hwmon/hwmon1/temp1_input ]; then
-            temp=$(${pkgs.coreutils}/bin/cat /sys/class/hwmon/hwmon1/temp1_input)
-            echo "$((temp / 1000))°C"
-        else
-            echo "n/a"
-        fi
-    }
-
-    json_escape() {
-        ${pkgs.gawk}/bin/awk '{
-            gsub(/\\/, "\\\\");
-            gsub(/"/, "\\\"");
-            printf "%s", $0
-        }'
-    }
-
-    printf '{"version":1}\n[\n[]'
-
-    while true; do
-        TIME=$(${pkgs.coreutils}/bin/date '+%H:%M')
-        RAM=$(ram_used)
-        CPU=$(cpu_usage)
-        UPTIME=$(uptime)
-        TEMP=$(temperature)
-
-        printf ',['
-        printf '{"full_text":"[   %s ]","color":"#89b4fa","background":"#1e1e2e"},' "$TIME"
-        printf '{"full_text":"[   %s ]","color":"#89b4fa","background":"#1e1e2e"},' "$RAM"
-        printf '{"full_text":"[   %s%% ]","color":"#89b4fa","background":"#1e1e2e"},' "$CPU"
-        printf '{"full_text":"[   %s ]","color":"#89b4fa","background":"#1e1e2e"},' "$UPTIME"
-        printf '{"full_text":"[   %s ]","color":"#89b4fa","background":"#1e1e2e"}' "$TEMP"
-        printf ']'
-
-        sleep "$interval"
-    done
-  '';
-};
 
 home.file."/home/ravyc/.config/swaylock/config".text = ''
 screenshots
@@ -275,28 +274,28 @@ clock
 indicator
 effect-blur=18x18
 
-inside-color=1e1e2e88
-inside-clear-color=31324488
-inside-ver-color=89b4fa88
-inside-wrong-color=f38ba888
+inside-color=28282888
+inside-clear-color=3c383688
+inside-ver-color=45858888
+inside-wrong-color=cc241d88
 
-ring-color=b4befe
-ring-clear-color=f9e2af
-ring-ver-color=89b4fa
-ring-wrong-color=f38ba8
+ring-color=458588
+ring-clear-color=d79921
+ring-ver-color=458588
+ring-wrong-color=cc241d
 
-key-hl-color=a6e3a1
-bs-hl-color=f38ba8
-text-color=cdd6f4
-text-clear-color=f9e2af
-text-ver-color=89b4fa
-text-wrong-color=f38ba8
+key-hl-color=a89984
+bs-hl-color=cc241d
+text-color=ebdbb2
+text-clear-color=d79921
+text-ver-color=458588
+text-wrong-color=cc241d
 '';
 
 home.file."/home/ravyc/.config/fuzzel/fuzzel.ini".text = ''
 [main]
 font=TerminessNerdFont:size=14
-prompt="> "
+prompt=": "
 icon-theme=Papirus
 fields=filename,name,generic,exec,categories,keywords
 lines=10
@@ -315,13 +314,13 @@ width=2
 radius=0
 
 [colors]
-background=1e1e2ee6
-text=cdd6f4ff
-match=f38ba8ff
-selection=313244ff
-selection-text=cdd6f4ff
-selection-match=f38ba8ff
-border=89b4faff
+background=282828e6
+text=ebdbb2ff
+match=fe8019ff
+selection=d79921ff
+selection-text=ebdbb2ff
+selection-match=fe8019ff
+border=d78821ff
 '';
 
 home.file."/home/ravyc/.config/foot/foot.ini".text = ''
@@ -333,26 +332,26 @@ initial-color-theme=dark
 [colors-dark]
 alpha=0.9
 
-background=1e1e2e
-foreground=cdd6f4
+background=282828
+foreground=ebdbb2
 
-regular0=45475a   # black (surface1)
-regular1=f38ba8   # red
-regular2=a6e3a1   # green
-regular3=f9e2af   # yellow
-regular4=89b4fa   # blue
-regular5=f5c2e7   # magenta (pink)
-regular6=94e2d5   # cyan (teal)
-regular7=bac2de   # white (subtext1)
+regular0=3c3836   # black
+regular1=cc241d   # red
+regular2=98971a   # green
+regular3=d79921   # yellow
+regular4=458588   # blue
+regular5=b16286   # magenta
+regular6=689d6a   # cyan
+regular7=a89984   # white
 
-bright0=585b70    # bright black (surface2)
-bright1=f38ba8    # bright red
-bright2=a6e3a1    # bright green
-bright3=f9e2af    # bright yellow
-bright4=89b4fa    # bright blue
-bright5=f5c2e7    # bright magenta (pink)
-bright6=94e2d5    # bright cyan (teal)
-bright7=a6adc8    # bright white (subtext0)
+bright0=504945    # bright black
+bright1=fb4934    # bright red
+bright2=b8bb26    # bright green
+bright3=fabd2f    # bright yellow
+bright4=83a598    # bright blue
+bright5=d3869b    # bright magenta
+bright6=8ec07c    # bright cyan
+bright7=ebdbb2    # bright white
 ''; 
 
 home.file.".vimrc".text = ''
