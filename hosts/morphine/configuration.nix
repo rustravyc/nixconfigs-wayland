@@ -1,227 +1,201 @@
 { config, pkgs, ... }:
+# [ PLEASE READ ALL THE COMMENTS ]
+# [ you will see here some WI-FI drivers configuration for aic8800, if you dont use it, just remove it. ]
+# [ sure, change things here just if you know what are you doing, every configuration have a comment explaining what thats does. ]
 
-# [here my configuration, you really will need delete the hardware-configuration or this can cause some issues.]
+let
+  aic8800 = config.boot.kernelPackages.callPackage ./aic8800.nix {};
+in
 
 {
-  imports = [
+ imports = [
     ./hardware-configuration.nix
-  ];
-
-# [some flake and kernel configuration, this is specific for intel GPU/CPU]
-
-  nix.settings = {
+];
+# [ configs for home-manager ]
+home-manager.backupFileExtension = "backup";
+# [ unfree software and nixld enable ]
+programs.nix-ld.enable = true;
+nixpkgs.config.allowUnfree = true;
+# [ gvfs, tumbler and 32bit configs ]
+services.gvfs.enable = true;
+services.tumbler.enable = true;
+hardware.graphics.enable32Bit = true;
+# [ auto-optmise-store can slow a rebuild, but your system will stay pretty clean ]
+ nix.settings = {
     experimental-features = [ "nix-command" "flakes" ];
-    auto-optimise-store = true;
-  };
+     auto-optimise-store = true;
+};
 
-  nix.gc = {
+# [ this auto delete generations older than 5 days ]
+nix.gc = {
     automatic = true;
     dates = "weekly";
     options = "--delete-older-than 5d";
-  };
-
-  boot.kernelPackages = pkgs.linuxPackages_zen;
-  
-  boot.kernelParams = [
-    "intel_pstate=active"
-    "i915.enable_guc=3"
-    "i915.enable_fbc=1"
-    "i915.fastboot=1"
-    "mitigations=off"
-    "nowatchdog"
+};
+# [ kernel zen as default and some intel cpu tweaks. ]
+boot.kernelPackages = pkgs.linuxPackages_zen;
+hardware.firmwareCompression = "none";
+hardware.cpu.intel.updateMicrocode = true;
+services.fstrim.enable = true;
+services.irqbalance.enable = true;
+boot.extraModprobeConfig = ''
+      options aic_load_fw aic_fw_path=${config.hardware.firmware}/lib/firmware/aic8800
+'';
+# [ aic8800 driver configuration ]
+boot.extraModulePackages = [
+    aic8800
+];
+boot.kernelModules = [
+    "aic_load_fw"
+    "aic8800_fdrv"
   ];
 
-  boot.kernel.sysctl = {
-    "vm.swappiness" = 10;
-    "vm.vfs_cache_pressure" = 50;
-    "vm.dirty_ratio" = 10;
-    "vm.dirty_background_ratio" = 5;
-    "net.core.default_qdisc" = "fq";
-    "net.ipv4.tcp_congestion_control" = "bbr";
-    "kernel.nmi_watchdog" = 0;
-    "kernel.unprivileged_userns_clone" = 1;
-  };
-
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-
-  # [you can change the hostname and the timezone, but you need change in another places too.]
-
-  networking.hostName = "morphine";
-  networking.networkmanager.enable = true;
-
-  time.timeZone = "America/Fortaleza";
-  i18n.defaultLocale = "pt_BR.UTF-8";
-
-  console = {
-    font = "Lat2-Terminus16";
-    keyMap = "br-abnt2";
-  };
-
-# [terminess font as default, change to some font you like it or just add another one]
-
-  fonts = {
-    fontconfig.enable = true;
-    packages = with pkgs; [
-      nerd-fonts.terminess-ttf
-    ];
-  };
-
-# [kernel tweaks for intel]
-
-  powerManagement.cpuFreqGovernor = "performance";
-  hardware.cpu.intel.updateMicrocode = true;
-  services.irqbalance.enable = true;
-  services.fstrim.enable = true;
-
-# [xserver configs, change to your language and keyboard]
-
-  services.xserver = {
-    enable = true;
-    xkb = {
+  hardware.firmware = [
+    aic8800
+  ];
+# [ systemd boot as default ]
+boot.loader.systemd-boot.enable = true;
+boot.loader.efi.canTouchEfiVariables = true;
+# [ important system configs, including hostname, username and opendoas ]
+security.rtkit.enable = true;
+security.polkit.enable = true;
+programs.dconf.enable = true;
+networking.hostName = "morphine"; # [ change to the hostname you like it ]
+networking.networkmanager.enable = true;
+time.timeZone = "America/Fortaleza";
+i18n.defaultLocale = "pt_BR.UTF-8";
+console = {
+  font = "Lat2-Terminus16";
+     keyMap = "br-abnt2";
+   };
+   users.users.ravyc = { # [ same thing here, change to your username ]
+     isNormalUser = true;
+     description = "ravyc";
+     extraGroups = [
+       "networkmanager"
+       "wheel"
+       "audio"
+       "video"
+       "input"
+     ];
+   };
+   security.doas = {
+     enable = true;
+     extraRules = [{
+       users = [ "ravyc" ];
+       keepEnv = true;
+       persist = true;
+     }];
+   };
+# [ terminess bcs i like it ]
+fonts = {
+  fontconfig.enable = true;
+  packages = with pkgs; [
+    nerd-fonts.terminess-ttf
+  ];
+};
+# [ xserver services configs ]
+services.xserver = {
+   enable = true;
+   xkb = {
       layout = "br";
       variant = "abnt2";
-    };
-    videoDrivers = [ "modesetting" ];
-    deviceSection = ''
-      Option "TearFree" "true"
-    '';
   };
-
-# [ly as default display manager]
-
-  services.displayManager.ly = {
-    enable = true;
-    settings = {
-      bigclock = false;
-      header_checksum = false;
-      hide_borders = false;
-      bg = 0;
-      fg = 7;
-      border_fg = 7;
-      active_border_fg = 7;
-    };
+};
+# [ ly as default display manager ]
+services.displayManager.ly = {
+  enable = true;
+  settings = {
+    bigclock = false;
+    header_checksum = false;
+    hide_borders = false;
+    bg = 0;
+    fg = 7;
+    border_fg = 7;
+    active_border_fg = 7;
   };
-
-  services.flatpak.enable = true;
-  xdg.portal = {
-    enable = true;
-    wlr.enable = true;
-    extraPortals = with pkgs; [
-      xdg-desktop-portal-gtk
-      xdg-desktop-portal-wlr
-    ];
-    config = {
-      common = {
-        default = [ "gtk" ];
+};
+# [ flatpak and xdg ]
+services.flatpak.enable = true;
+xdg.portal = {
+  enable = true;
+  wlr.enable = true;
+  extraPortals = with pkgs; [
+    xdg-desktop-portal-gtk
+    xdg-desktop-portal-wlr
+  ];
+  config = {
+    common = {
+      default = [ "gtk" ];
     };
   };
 };
-
-  security.rtkit.enable = true;
-  services.pipewire = {
-    enable = true;
-    alsa.enable = true;
-    alsa.support32Bit = true;
-    pulse.enable = true;
-  };
-
-# [change to your username]
-
-  users.users.ravyc = {
-    isNormalUser = true;
-    description = "ravyc";
-    extraGroups = [ "networkmanager" "wheel" "audio" "video" "input" ];
-  };
-
-# [yes, fucking doas as default...i just like it, but you can remove to set sudo to default. both works]
-
-  security.doas = {
-    enable = true;
-    extraRules = [{
-      users = [ "ravyc" ];
-      keepEnv = true;
-      persist = true;
-    }];
-  };
-
-  nixpkgs.config.allowUnfree = true;
-
-# [here all my sway stuff, i really recommend you dont change any line here]
-
+# [ pipewire sound configuration ]
+services.pipewire = {
+  enable = true;
+  alsa.enable = true;
+  alsa.support32Bit = true;
+  pulse.enable = true;
+};
+# [ obs configs ]
+programs.obs-studio = {
+  enable = true;
+  plugins = with pkgs.obs-studio-plugins; [
+    wlrobs
+    obs-pipewire-audio-capture
+    obs-backgroundremoval
+  ];
+};
+# [ here all the sway configs ]
 programs.sway = {
-    enable = true;
-    extraPackages = with pkgs; [
+  enable = true;
+  extraPackages = with pkgs; [
     swaylock-effects
     swayidle
     foot
     fuzzel
     brightnessctl
     wl-clipboard
-    ];
-  };
-
-  security.polkit.enable = true;
-  security.pam.services.swaylock = {};
-  programs.dconf.enable = true;
-  programs.nix-ld.enable = true;
-
-  home-manager.backupFileExtension = "backup"; 
-  services.gvfs.enable = true;
-  services.tumbler.enable = true;
-
-  programs.obs-studio = {
-    enable = true;
-    plugins = with pkgs.obs-studio-plugins; [
-      wlrobs
   ];
 };
+security.pam.services.swaylock = {};
+# [ all my pkgs ]
+environment.systemPackages = with pkgs; [
+# [ programming stuff ]
+vim-full
+neovim
+python3
+nodejs
+# [ system essentials ]
+libnotify
+pavucontrol
+nwg-look
+thunar
+mpv
+mako
+grim
+slurp
+feh
+ffmpeg
+appimage-run
+unzip
+unrar
+usbutils
+# [ web pkgs ]
+git
+curl
+firefox
+# [ some gtk themes ]
+gruvbox-gtk-theme
+gruvbox-dark-gtk
+gruvbox-dark-icons-gtk
+#[ personal pkgs ]
+obsidian
+cmatrix
+cava
+htop
+pipes
+];
 
-  environment.systemPackages = with pkgs; [
-
-# [programming stuff, you can delete it if you dont need it]
-
-    python3
-    uv
-    sqlite
-    nodejs
-    vim
-    neovim
-    obsidian
-
-# [some Wayland apps, essential to make sway works so i dont recommend remove it]
-
-    libnotify
-    pavucontrol
-    nwg-look
-    thunar
-    mpv
-    mako
-    grim
-    slurp
-    betterlockscreen
-    
-# [some dev pkgs, you can remove it too]
-
-    git
-    curl
-    gnumake
-    gcc
-    pkg-config
-    unzip
-    unrar
-    glib
-
-# [i use gtk catppuccin to set the gtk themes in general on dwm, but you can change it for some theme you like it]
-
-    catppuccin-gtk
-    catppuccin
-    papirus-icon-theme
-    papirus-nord
-    firefox
-    ffmpeg
-    appimage-run
-  ];
-
-  system.stateVersion = "26.05";
+system.stateVersion = "26.05";
 }
